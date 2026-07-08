@@ -1,7 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
-const messages: { role: string; content: string }[] = [
+const messages = [
   { role: "system", content: "You are a concise, helpful coding assistant." },
 ];
 
@@ -26,7 +26,7 @@ while (true) {
     }),
   });
 
-  const body: any = await response.json();
+  const body = await response.json();
   const text = body.choices[0].message.content;
 
   messages.push({ role: "assistant", content: text });
