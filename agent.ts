@@ -8,12 +8,8 @@ const agentsMd = await Bun.file("AGENTS.md").text();
 const skills = new Map<string, ParsedFrontmatter>();
 
 const skillBase = ".agents/skills";
-let skillNames: string[] = [];
-try {
-  skillNames = await readdir(skillBase);
-} catch {
-  // no skills directory
-}
+const skillNames = await readdir(skillBase)
+
 for (const name of skillNames) {
   const dir = `${skillBase}/${name}`;
   const loc = `${dir}/SKILL.md`;
@@ -33,16 +29,14 @@ const messages: any[] = [
     content: [
       "You are a concise, helpful coding assistant.",
       agentsMd,
-      skills.size > 0
-        ? `\n\nAvailable skills:\n${Array.from(skills.values())
-            .map((s) => `- ${s.name}: ${s.description}`)
-            .join("\n")}`
-        : "",
+      `\n\nAvailable skills:\n${Array.from(skills.values())
+        .map((s) => `- ${s.name}: ${s.description}`)
+        .join("\n")}`
     ].filter(Boolean).join("\n\n"),
   },
 ];
 
-const tools: any[] = [
+const tools = [
   {
     type: "function",
     function: {
@@ -57,10 +51,7 @@ const tools: any[] = [
       },
     },
   },
-];
-
-if (skills.size > 0) {
-  tools.push({
+  {
     type: "function",
     function: {
       name: "load_skill",
@@ -73,8 +64,8 @@ if (skills.size > 0) {
         required: ["name"],
       },
     },
-  });
-}
+  }
+];
 
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
