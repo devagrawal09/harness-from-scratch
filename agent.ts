@@ -6,9 +6,11 @@ interface Skill {
   name: string;
   description: string;
   content: string;
+  location: string;
+  directory: string;
 }
 
-function parseFrontmatter(text: string): { name: string; description: string; content: string } | null {
+function parseFrontmatter(text: string, location: string, directory: string): Skill | null {
   if (!text.startsWith("---\n")) return null;
   const end = text.indexOf("\n---\n", 4);
   if (end === -1) return null;
@@ -25,38 +27,49 @@ function parseFrontmatter(text: string): { name: string; description: string; co
     if (key === "description") description = val;
   }
   if (!name) return null;
-  return { name, description, content: rest };
+  return { name, description, content: rest, location, directory };
 }
 
-const agentsFile = Bun.file("AGENTS.md");
-const agentsInstructions = (await agentsFile.exists()) ? await agentsFile.text() : "";
+const agentsMd = await Bun.file("AGENTS.md").text();
 
 const skills = new Map<string, Skill>();
+
+const skillBase = ".agents/skills";
+let skillNames: string[] = [];
 try {
-  const files = await readdir("skills");
-  for (const file of files) {
-    if (!file.endsWith(".md")) continue;
-    const text = await Bun.file(`skills/${file}`).text();
-    const parsed = parseFrontmatter(text);
+  skillNames = await readdir(skillBase);
+} catch {
+  // no skills directory
+}
+for (const name of skillNames) {
+  const dir = `${skillBase}/${name}`;
+  const loc = `${dir}/SKILL.md`;
+  const file = Bun.file(loc);
+  if (await file.exists()) {
+    const text = await file.text();
+    const parsed = parseFrontmatter(text, loc, dir);
     if (parsed) {
       skills.set(parsed.name.toLowerCase(), parsed);
     }
   }
-} catch {}
-
-const skillsList = Array.from(skills.values())
-  .map((s) => `- ${s.name}: ${s.description}`)
-  .join("\n");
-const skillsSection = skillsList ? `\n\nAvailable skills:\n${skillsList}` : "";
+}
 
 const messages: any[] = [
   {
     role: "system",
-    content: ["You are a concise, helpful coding assistant.", agentsInstructions, skillsSection].filter(Boolean).join("\n\n"),
+    content: [
+      "You are a concise, helpful coding assistant.",
+      agentsMd,
+      skills.size > 0
+        ? `\n\nAvailable skills:\n${Array.from(skills.values())
+            .map((s) => `- ${s.name}: ${s.description}`)
+            .join("\n")}`
+        : "",
+    ].filter(Boolean).join("\n\n"),
   },
 ];
 
-const tools = [
+const tools: any[] = [
   {
     type: "function",
     function: {
@@ -71,21 +84,24 @@ const tools = [
       },
     },
   },
-  {
+];
+
+if (skills.size > 0) {
+  tools.push({
     type: "function",
     function: {
       name: "load_skill",
-      description: "Load full skill content by frontmatter name.",
+      description: "Load full skill content by frontmatter name (case-insensitive).",
       parameters: {
         type: "object",
         properties: {
-          name: { type: "string", description: "Skill name from frontmatter (case-insensitive)" },
+          name: { type: "string", description: "Skill name from frontmatter" },
         },
         required: ["name"],
       },
     },
-  },
-];
+  });
+}
 
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
@@ -98,7 +114,12 @@ function shell(command: string) {
 function loadSkill(name: string) {
   const skill = skills.get(name.toLowerCase());
   if (!skill) return `Skill not found: ${name}`;
-  return skill.content;
+  return JSON.stringify({
+    name: skill.name,
+    content: skill.content,
+    location: skill.location,
+    directory: skill.directory,
+  });
 }
 
 console.log(`Hi, how can I help you today?`);
