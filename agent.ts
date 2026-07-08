@@ -63,8 +63,7 @@ while (true) {
     for (const toolCall of message.tool_calls) {
       const { command } = JSON.parse(toolCall.function.arguments);
       const result = shell(command);
-      console.log(`$ ${command}
-${result}`);
+      console.log(`$ ${command}\n${result}`);
       messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
     }
   }
