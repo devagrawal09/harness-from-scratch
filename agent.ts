@@ -1,7 +1,9 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
-const messages: { role: string; content: string }[] = [];
+const messages: { role: string; content: string }[] = [
+  { role: "system", content: "You are a concise, helpful coding assistant." },
+];
 
 const rl = createInterface({ input, output });
 
