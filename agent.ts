@@ -112,11 +112,7 @@ function getReasoning(message: any) {
 function rememberAssistantMessage(message: any, reasoning: string) {
   messages.push({
     ...message,
-    content: [
-      reasoning && `<reasoning>\n${reasoning}\n</reasoning>`,
-      message.content && `<text>\n${message.content}\n</text>`,
-    ].filter(Boolean).join("\n\n") || message.content,
-    reasoning,
+    reasoning: message.reasoning ?? message.reasoning_content ?? (reasoning || undefined),
   });
 }
 
