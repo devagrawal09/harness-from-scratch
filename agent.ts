@@ -8,7 +8,7 @@ const agentsMd = await Bun.file("AGENTS.md").text();
 const skills = new Map<string, ParsedFrontmatter>();
 
 const skillBase = ".agents/skills";
-const skillNames = await readdir(skillBase)
+const skillNames = await readdir(skillBase);
 
 for (const name of skillNames) {
   const dir = `${skillBase}/${name}`;
@@ -31,7 +31,7 @@ const messages: any[] = [
       agentsMd,
       `\n\nAvailable skills:\n${Array.from(skills.values())
         .map((s) => `- ${s.name}: ${s.description}`)
-        .join("\n")}`
+        .join("\n")}`,
     ].filter(Boolean).join("\n\n"),
   },
 ];
@@ -64,7 +64,7 @@ const tools = [
         required: ["name"],
       },
     },
-  }
+  },
 ];
 
 const rl = createInterface({ input, output });
@@ -86,6 +86,17 @@ function loadSkill(name: string) {
   });
 }
 
+function printBlock(label: string, content: string) {
+  const marker = label.toUpperCase();
+  console.log(`\n=== ${marker} START ===\n${content || "(empty)"}\n=== ${marker} END ===\n`);
+}
+
+function getReasoning(message: any) {
+  return [message.reasoning, message.reasoning_content]
+    .filter((part) => typeof part === "string" && part.trim())
+    .join("\n\n");
+}
+
 console.log(`Hi, how can I help you today?`);
 
 while (true) {
@@ -104,6 +115,7 @@ while (true) {
         model: "minimax/minimax-m3",
         messages,
         tools,
+        reasoning: { effort: "medium" },
       }),
     });
 
@@ -111,8 +123,11 @@ while (true) {
     const message = body.choices[0].message;
     messages.push(message);
 
+    const reasoning = getReasoning(message);
+    if (reasoning) printBlock("reasoning", reasoning);
+
     if (!message.tool_calls) {
-      console.log(message.content);
+      printBlock("text output", message.content);
       break;
     }
 
@@ -120,14 +135,16 @@ while (true) {
       const args = JSON.parse(toolCall.function.arguments);
       let result = "Unknown tool";
 
+      printBlock(`tool call: ${toolCall.function.name}`, toolCall.function.arguments);
+
       if (toolCall.function.name === "shell") {
         result = shell(args.command);
-        console.log(`$ ${args.command}\n${result}`);
+        printBlock("tool result: shell", `$ ${args.command}\n${result}`);
       }
 
       if (toolCall.function.name === "load_skill") {
         result = loadSkill(args.name);
-        console.log(`Loaded skill: ${args.name}`);
+        printBlock("tool result: load_skill", `Loaded skill: ${args.name}`);
       }
 
       messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
