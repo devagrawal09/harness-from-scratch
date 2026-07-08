@@ -1,11 +1,24 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 
-const messages = [
+const messages: any[] = [
+  { role: "system", content: "You are a concise, helpful coding assistant." },
+];
+
+const tools = [
   {
-    role: "system",
-    content:
-      'You are a concise coding assistant. Respond only with JSON: {"action":"reply","content":"..."} or {"action":"shell","command":"..."}. Use shell when you need to inspect the local project.',
+    type: "function",
+    function: {
+      name: "shell",
+      description: "Run a shell command in the current project.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string" },
+        },
+        required: ["command"],
+      },
+    },
   },
 ];
 
@@ -34,24 +47,25 @@ while (true) {
       body: JSON.stringify({
         model: "minimax/minimax-m3",
         messages,
+        tools,
       }),
     });
 
     const body = await response.json();
-    const text = body.choices[0].message.content;
-    const action = JSON.parse(text);
+    const message = body.choices[0].message;
+    messages.push(message);
 
-    messages.push({ role: "assistant", content: text });
-
-    if (action.action === "reply") {
-      console.log(action.content);
+    if (!message.tool_calls) {
+      console.log(message.content);
       break;
     }
 
-    const result = shell(action.command);
-    console.log(`$ ${action.command}
+    for (const toolCall of message.tool_calls) {
+      const { command } = JSON.parse(toolCall.function.arguments);
+      const result = shell(command);
+      console.log(`$ ${command}
 ${result}`);
-    messages.push({ role: "user", content: `Shell output:
-${result}` });
+      messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
+    }
   }
 }
