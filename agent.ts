@@ -3,6 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
 import { parseFrontmatter, type ParsedFrontmatter } from "./frontmatter";
 
+const verbose = Bun.argv.includes("--verbose");
 const agentsMd = await Bun.file("AGENTS.md").text();
 
 const skills = new Map<string, ParsedFrontmatter>();
@@ -87,8 +88,19 @@ function loadSkill(name: string) {
 }
 
 function printBlock(label: string, content: string) {
+  if (!verbose) return;
+
   const marker = label.toUpperCase();
   console.log(`\n=== ${marker} START ===\n${content || "(empty)"}\n=== ${marker} END ===\n`);
+}
+
+function printTextOutput(content: string) {
+  if (verbose) {
+    printBlock("text output", content);
+    return;
+  }
+
+  console.log(content.replace(/\s+/g, " ").trim());
 }
 
 function getReasoning(message: any) {
@@ -127,7 +139,7 @@ while (true) {
     if (reasoning) printBlock("reasoning", reasoning);
 
     if (!message.tool_calls) {
-      printBlock("text output", message.content);
+      printTextOutput(message.content);
       break;
     }
 
