@@ -24,7 +24,7 @@ while (true) {
     }),
   });
 
-  const body = await response.json();
+  const body: any = await response.json();
   const text = body.choices[0].message.content;
 
   messages.push({ role: "assistant", content: text });
