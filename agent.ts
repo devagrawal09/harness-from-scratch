@@ -5,7 +5,7 @@ const messages = [
   {
     role: "system",
     content:
-      'You are a concise coding assistant. Respond only with JSON: {"action":"reply","content":"..."} or {"action":"shell","command":"..."}. Use shell when you need to inspect the local project.',
+      'You are a concise coding assistant. Respond only with JSON: {"action":"reply","content":"..."} or {"action":"shell","command":"..."}. Use shell when you need to inspect the local project or run terminal commands on the local machine.',
   },
 ];
 
@@ -49,9 +49,9 @@ while (true) {
     }
 
     const result = shell(action.command);
-    console.log(`$ ${action.command}
-${result}`);
-    messages.push({ role: "user", content: `Shell output:
-${result}` });
+    console.log(`$ ${action.command}\n${result}`);
+    messages.push({
+      role: "user", content: `Shell output:\n${result}`
+    });
   }
 }
