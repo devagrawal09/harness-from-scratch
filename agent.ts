@@ -109,6 +109,17 @@ function getReasoning(message: any) {
     .join("\n\n");
 }
 
+function rememberAssistantMessage(message: any, reasoning: string) {
+  messages.push({
+    ...message,
+    content: [
+      reasoning && `<reasoning>\n${reasoning}\n</reasoning>`,
+      message.content && `<text>\n${message.content}\n</text>`,
+    ].filter(Boolean).join("\n\n") || message.content,
+    reasoning,
+  });
+}
+
 console.log(`Hi, how can I help you today?`);
 
 while (true) {
@@ -133,9 +144,9 @@ while (true) {
 
     const body = await response.json();
     const message = body.choices[0].message;
-    messages.push(message);
-
     const reasoning = getReasoning(message);
+    rememberAssistantMessage(message, reasoning);
+
     if (reasoning) printBlock("reasoning", reasoning);
 
     if (!message.tool_calls) {
