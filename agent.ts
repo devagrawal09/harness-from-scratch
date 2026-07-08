@@ -15,7 +15,7 @@ while (true) {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: `minimax/minimax-m3`,
+      model: "minimax/minimax-m3",
       messages: [{ role: "user", content: userMessage }]
     }),
   });
@@ -24,8 +24,3 @@ while (true) {
 
   console.log(text);
 }
-
-
-
-
-
