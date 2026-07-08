@@ -1,13 +1,58 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { readdir } from "node:fs/promises";
+
+interface Skill {
+  name: string;
+  description: string;
+  content: string;
+}
+
+function parseFrontmatter(text: string): { name: string; description: string; content: string } | null {
+  if (!text.startsWith("---\n")) return null;
+  const end = text.indexOf("\n---\n", 4);
+  if (end === -1) return null;
+  const raw = text.slice(4, end);
+  const rest = text.slice(end + 5);
+  let name = "";
+  let description = "";
+  for (const line of raw.split("\n")) {
+    const idx = line.indexOf(": ");
+    if (idx === -1) continue;
+    const key = line.slice(0, idx).trim();
+    const val = line.slice(idx + 2).trim();
+    if (key === "name") name = val;
+    if (key === "description") description = val;
+  }
+  if (!name) return null;
+  return { name, description, content: rest };
+}
 
 const agentsFile = Bun.file("AGENTS.md");
 const agentsInstructions = (await agentsFile.exists()) ? await agentsFile.text() : "";
 
+const skills = new Map<string, Skill>();
+try {
+  const files = await readdir("skills");
+  for (const file of files) {
+    if (!file.endsWith(".md")) continue;
+    const text = await Bun.file(`skills/${file}`).text();
+    const parsed = parseFrontmatter(text);
+    if (parsed) {
+      skills.set(parsed.name.toLowerCase(), parsed);
+    }
+  }
+} catch {}
+
+const skillsList = Array.from(skills.values())
+  .map((s) => `- ${s.name}: ${s.description}`)
+  .join("\n");
+const skillsSection = skillsList ? `\n\nAvailable skills:\n${skillsList}` : "";
+
 const messages: any[] = [
   {
     role: "system",
-    content: ["You are a concise, helpful coding assistant.", agentsInstructions].filter(Boolean).join("\n\n"),
+    content: ["You are a concise, helpful coding assistant.", agentsInstructions, skillsSection].filter(Boolean).join("\n\n"),
   },
 ];
 
@@ -30,11 +75,11 @@ const tools = [
     type: "function",
     function: {
       name: "load_skill",
-      description: "Load instructions from skills/<name>.md.",
+      description: "Load full skill content by frontmatter name.",
       parameters: {
         type: "object",
         properties: {
-          name: { type: "string" },
+          name: { type: "string", description: "Skill name from frontmatter (case-insensitive)" },
         },
         required: ["name"],
       },
@@ -50,10 +95,10 @@ function shell(command: string) {
   return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
 }
 
-async function loadSkill(name: string) {
-  const file = Bun.file(`skills/${name}.md`);
-  if (!(await file.exists())) return `Skill not found: ${name}`;
-  return await file.text();
+function loadSkill(name: string) {
+  const skill = skills.get(name.toLowerCase());
+  if (!skill) return `Skill not found: ${name}`;
+  return skill.content;
 }
 
 console.log(`Hi, how can I help you today?`);
@@ -96,7 +141,7 @@ while (true) {
       }
 
       if (toolCall.function.name === "load_skill") {
-        result = await loadSkill(args.name);
+        result = loadSkill(args.name);
         console.log(`Loaded skill: ${args.name}`);
       }
 
