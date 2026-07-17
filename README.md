@@ -1,18 +1,12 @@
-# AI Agent Talk OpenRouter CLI
+# Step 0: Echo CLI
 
-Tiny interactive TypeScript CLI that chats through OpenRouter using Gemini 3 Flash.
+A tiny interactive TypeScript CLI that prints each message back to the terminal.
+This step does not call OpenRouter or any other external service.
 
 ## Setup
 
 ```bash
 bun install
-export OPENROUTER_API_KEY="sk-or-your-key"
-```
-
-If OpenRouter uses a different Gemini 3 Flash slug, override it:
-
-```bash
-export OPENROUTER_MODEL="google/gemini-3-flash"
 ```
 
 ## Run
@@ -21,4 +15,4 @@ export OPENROUTER_MODEL="google/gemini-3-flash"
 bun run agent.ts
 ```
 
-Then type messages at the prompt. Use `/exit` to quit.
+Then type messages at the prompt. Press Ctrl+C to quit.
