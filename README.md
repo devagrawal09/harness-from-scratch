@@ -1,20 +1,37 @@
-# AI Agent Talk OpenRouter CLI
+# Step 8: Human Approval
 
-Tiny interactive TypeScript CLI that chats through OpenRouter.
+Pause before every shell command and let the user approve or reject it.
 
-## Setup
+## What this step adds
 
-Create a `.env` file:
+- A `[y/N]` approval prompt for shell tool calls
+- Rejected tool results returned to the model
+- The complete config contract from Step 7, with no new config key required
 
-```dotenv
-OPENROUTER_API_KEY="sk-or-your-key"
-```
+The shell and approval logic remain hardcoded in `agent.ts`.
 
-## Run
+## Setup and run
+
+Create `.env` with `OPENROUTER_API_KEY`, then run:
 
 ```bash
 deno task check
-deno task start
+deno task start -- --verbose
 ```
 
-Shell tool calls pause for human approval before they run. Add `--verbose` to show reasoning, tool calls, and tool results.
+Try requesting a harmless command and reject it:
+
+```text
+> Use the shell tool to run printf SHOULD_NOT_RUN.
+Approve shell command? [y/N]
+$ printf SHOULD_NOT_RUN
+> n
+Shell command rejected by user.
+```
+
+The model receives the rejection and continues without executing the command.
+Press Ctrl+C to stop.
+
+## Next
+
+`step-09-compaction` summarizes older history when the conversation grows.
