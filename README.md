@@ -15,8 +15,10 @@ actions.
 
 ## Setup
 
-```bash
-export OPENROUTER_API_KEY="sk-or-your-key"
+Create a `.env` file:
+
+```dotenv
+OPENROUTER_API_KEY="sk-or-your-key"
 ```
 
 ## Run
