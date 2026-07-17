@@ -13,8 +13,6 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-const agentsMd = await Deno.readTextFile(config.agentInstructionsFile);
-
 const skills = new Map<string, {
   name: string;
   description: string;
@@ -66,7 +64,7 @@ const mainMessages: any[] = [
     role: "system",
     content: [
       "You are a concise, helpful coding assistant.",
-      agentsMd,
+      ...config.rules,
       `\n\nAvailable skills:\n${Array.from(skills.values())
         .map((skill) => `- ${skill.name}: ${skill.description}`)
         .join("\n")}`,
@@ -74,8 +72,54 @@ const mainMessages: any[] = [
   },
 ];
 
-const baseTools = config.tools.base;
-const mainTools = config.tools.main;
+const shellTool = {
+  type: "function",
+  function: {
+    name: "shell",
+    description: "Request human approval, then run a shell command in the current project.",
+    parameters: {
+      type: "object",
+      properties: {
+        command: { type: "string" },
+      },
+      required: ["command"],
+    },
+  },
+};
+
+const loadSkillTool = {
+  type: "function",
+  function: {
+    name: "load_skill",
+    description: "Load full skill content by frontmatter name (case-insensitive).",
+    parameters: {
+      type: "object",
+      properties: {
+        name: { type: "string", description: "Skill name from frontmatter" },
+      },
+      required: ["name"],
+    },
+  },
+};
+
+const runSubagentTool = {
+  type: "function",
+  function: {
+    name: "run_subagent",
+    description:
+      "Delegate a focused task to an isolated agent loop with shell and skill tools. Include all needed context because it cannot see this conversation.",
+    parameters: {
+      type: "object",
+      properties: {
+        task: { type: "string", description: "Self-contained task for the subagent" },
+      },
+      required: ["task"],
+    },
+  },
+};
+
+const baseTools = [shellTool, loadSkillTool];
+const mainTools = [shellTool, loadSkillTool, runSubagentTool];
 
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
@@ -173,7 +217,7 @@ async function runAgent(
             role: "system",
             content: [
               "You are a focused coding subagent. Complete only the delegated task and return concise findings to the parent agent. You may use shell and skill tools, but you cannot delegate to another subagent or see the parent conversation.",
-              agentsMd,
+              ...config.rules,
               `\n\nAvailable skills:\n${Array.from(skills.values())
                 .map((skill) => `- ${skill.name}: ${skill.description}`)
                 .join("\n")}`,

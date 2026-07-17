@@ -6,67 +6,17 @@ const compactionThreshold = Number.isFinite(configuredCompactionThreshold) &&
   ? configuredCompactionThreshold
   : 12_000;
 
-const shellTool = {
-  type: "function",
-  function: {
-    name: "shell",
-    description: "Request human approval, then run a shell command in the current project.",
-    parameters: {
-      type: "object",
-      properties: {
-        command: { type: "string" },
-      },
-      required: ["command"],
-    },
-  },
-};
-
-const loadSkillTool = {
-  type: "function",
-  function: {
-    name: "load_skill",
-    description: "Load full skill content by frontmatter name (case-insensitive).",
-    parameters: {
-      type: "object",
-      properties: {
-        name: { type: "string", description: "Skill name from frontmatter" },
-      },
-      required: ["name"],
-    },
-  },
-};
-
-const runSubagentTool = {
-  type: "function",
-  function: {
-    name: "run_subagent",
-    description:
-      "Delegate a focused task to an isolated agent loop with shell and skill tools. Include all needed context because it cannot see this conversation.",
-    parameters: {
-      type: "object",
-      properties: {
-        task: { type: "string", description: "Self-contained task for the subagent" },
-      },
-      required: ["task"],
-    },
-  },
-};
-
 export default {
   apiKey: Deno.env.get("OPENROUTER_API_KEY"),
   apiUrl: "https://openrouter.ai/api/v1/chat/completions",
   model: "minimax/minimax-m3",
   maxAgentIterations: 50,
-  agentInstructionsFile: "AGENTS.md",
+  rules: [await Deno.readTextFile("AGENTS.md")],
   skillsDirectory: ".agents/skills",
   verbose: Deno.args.includes("--verbose"),
   reasoning: { effort: "medium" },
   compaction: {
     thresholdChars: compactionThreshold,
     recentMessageCount: 4,
-  },
-  tools: {
-    base: [shellTool, loadSkillTool],
-    main: [shellTool, loadSkillTool, runSubagentTool],
   },
 };
