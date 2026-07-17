@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
 import { parseFrontmatter, type ParsedFrontmatter } from "./frontmatter.ts";
+import config from "./config.ts";
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -13,18 +14,9 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-const verbose = Deno.args.includes("--verbose");
-const model = "minimax/minimax-m3";
-const configuredCompactionThreshold = Number(Deno.env.get("AGENT_COMPACTION_CHARS") ?? 12_000);
-const compactionThreshold = Number.isFinite(configuredCompactionThreshold) && configuredCompactionThreshold > 0
-  ? configuredCompactionThreshold
-  : 12_000;
-const recentMessageCount = 4;
-const agentsMd = await Deno.readTextFile("AGENTS.md");
-
 const skills = new Map<string, ParsedFrontmatter>();
 
-const skillBase = ".agents/skills";
+const skillBase = config.skillsDirectory;
 const skillNames = await readdir(skillBase);
 
 for (const name of skillNames) {
@@ -44,7 +36,7 @@ const messages: any[] = [
     role: "system",
     content: [
       "You are a concise, helpful coding assistant.",
-      agentsMd,
+      ...config.rules,
       `\n\nAvailable skills:\n${Array.from(skills.values())
         .map((s) => `- ${s.name}: ${s.description}`)
         .join("\n")}`,
@@ -98,14 +90,14 @@ function loadSkill(name: string) {
 }
 
 function printBlock(label: string, content: string) {
-  if (!verbose) return;
+  if (!config.verbose) return;
 
   const marker = label.toUpperCase();
   console.log(`\n=== ${marker} START ===\n${content || "(empty)"}\n=== ${marker} END ===\n`);
 }
 
 function printTextOutput(content: string) {
-  if (verbose) {
+  if (config.verbose) {
     printBlock("text output", content);
     return;
   }
@@ -128,23 +120,23 @@ function rememberAssistantMessage(message: any, reasoning: string) {
 
 async function compactHistory() {
   const historyChars = JSON.stringify(messages.slice(1)).length;
-  if (historyChars <= compactionThreshold) return;
+  if (historyChars <= config.compaction.thresholdChars) return;
 
-  const targetStart = Math.max(1, messages.length - recentMessageCount);
+  const targetStart = Math.max(1, messages.length - config.compaction.recentMessageCount);
   const recentStart = messages.findIndex(
     (message, index) => index >= targetStart && message.role === "user",
   );
   if (recentStart <= 1) return;
 
   const olderMessages = messages.slice(1, recentStart);
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch(config.apiUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+      Authorization: `Bearer ${config.apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model,
+      model: config.model,
       messages: [
         {
           role: "system",
@@ -173,18 +165,18 @@ while (true) {
   messages.push({ role: "user", content: userMessage });
   await compactHistory();
 
-  for (let i = 0; i < 50; i++) {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  for (let i = 0; i < config.maxAgentIterations; i++) {
+    const response = await fetch(config.apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+        Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
+        model: config.model,
         messages,
         tools,
-        reasoning: { effort: "medium" },
+        reasoning: config.reasoning,
       }),
     });
 
