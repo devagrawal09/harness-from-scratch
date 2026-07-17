@@ -42,7 +42,7 @@ const tools = [
     type: "function",
     function: {
       name: "shell",
-      description: "Run a shell command in the current project.",
+      description: "Request human approval, then run a shell command in the current project.",
       parameters: {
         type: "object",
         properties: {
@@ -71,7 +71,15 @@ const tools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-function shell(command: string) {
+async function shell(command: string) {
+  const answer = (await rl.question(`\nApprove shell command? [y/N]\n$ ${command}\n> `))
+    .trim()
+    .toLowerCase();
+
+  if (answer !== "y" && answer !== "yes") {
+    return "Shell command rejected by user.";
+  }
+
   const proc = Bun.spawnSync(["bash", "-lc", command]);
   return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
 }
@@ -157,7 +165,7 @@ while (true) {
       printBlock(`tool call: ${toolCall.function.name}`, toolCall.function.arguments);
 
       if (toolCall.function.name === "shell") {
-        result = shell(args.command);
+        result = await shell(args.command);
         printBlock("tool result: shell", `$ ${args.command}\n${result}`);
       }
 
