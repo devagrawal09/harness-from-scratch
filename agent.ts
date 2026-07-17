@@ -1,25 +1,9 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import config from "./config.ts";
 
 const messages: any[] = [
   { role: "system", content: "You are a concise, helpful coding assistant." },
-];
-
-const tools = [
-  {
-    type: "function",
-    function: {
-      name: "shell",
-      description: "Run a shell command in the current project.",
-      parameters: {
-        type: "object",
-        properties: {
-          command: { type: "string" },
-        },
-        required: ["command"],
-      },
-    },
-  },
 ];
 
 const rl = createInterface({ input, output });
@@ -32,16 +16,16 @@ while (true) {
 
   messages.push({ role: "user", content: userMessage });
 
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  const response = await fetch(config.apiUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+      Authorization: `Bearer ${config.apiKey}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "minimax/minimax-m3",
+      model: config.model,
       messages,
-      tools,
+      tools: config.tools,
     }),
   });
 
