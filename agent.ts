@@ -1,20 +1,15 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
-import { parseFrontmatter, type ParsedFrontmatter } from "./frontmatter.ts";
 import config from "./config.ts";
 
-async function fileExists(path: string): Promise<boolean> {
-  try {
-    await Deno.stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return false;
-    throw error;
-  }
-}
-
-const skills = new Map<string, ParsedFrontmatter>();
+const skills = new Map<string, {
+  name: string;
+  description: string;
+  content: string;
+  location: string;
+  directory: string;
+}>();
 
 const skillBase = config.skillsDirectory;
 const skillNames = await readdir(skillBase);
@@ -22,12 +17,38 @@ const skillNames = await readdir(skillBase);
 for (const name of skillNames) {
   const dir = `${skillBase}/${name}`;
   const loc = `${dir}/SKILL.md`;
-  if (await fileExists(loc)) {
-    const text = await Deno.readTextFile(loc);
-    const parsed = parseFrontmatter(text, loc, dir);
-    if (parsed) {
-      skills.set(parsed.name.toLowerCase(), parsed);
-    }
+  let text;
+  try {
+    text = await Deno.readTextFile(loc);
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) continue;
+    throw error;
+  }
+  if (!text.startsWith("---\n")) continue;
+
+  const end = text.indexOf("\n---\n", 4);
+  if (end === -1) continue;
+
+  let skillName = "";
+  let description = "";
+  for (const line of text.slice(4, end).split("\n")) {
+    const separator = line.indexOf(": ");
+    if (separator === -1) continue;
+
+    const key = line.slice(0, separator).trim();
+    const value = line.slice(separator + 2).trim();
+    if (key === "name") skillName = value;
+    if (key === "description") description = value;
+  }
+
+  if (skillName) {
+    skills.set(skillName.toLowerCase(), {
+      name: skillName,
+      description,
+      content: text.slice(end + 5),
+      location: loc,
+      directory: dir,
+    });
   }
 }
 
@@ -78,56 +99,53 @@ const tools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-async function compactHistory() {
-  const historyChars = JSON.stringify(messages.slice(1)).length;
-  if (historyChars <= config.compaction.thresholdChars) return;
-
-  const targetStart = Math.max(1, messages.length - config.compaction.recentMessageCount);
-  const recentStart = messages.findIndex(
-    (message, index) => index >= targetStart && message.role === "user",
-  );
-  if (recentStart <= 1) return;
-
-  const olderMessages = messages.slice(1, recentStart);
-  const response = await fetch(config.apiUrl, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${config.apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: config.model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
-        },
-        { role: "user", content: JSON.stringify(olderMessages) },
-      ],
-    }),
-  });
-
-  const body = await response.json();
-  const summary = body.choices[0].message.content;
-  messages.splice(1, olderMessages.length, {
-    role: "system",
-    content: `Conversation summary:\n${summary}`,
-  });
-  if (config.verbose) {
-    console.log(
-      `\n=== COMPACTION START ===\nCompacted ${olderMessages.length} messages into:\n${summary}\n=== COMPACTION END ===\n`,
-    );
-  }
-}
-
 console.log(`Hi, how can I help you today?`);
 
 while (true) {
   const userMessage = (await rl.question("> ")).trim();
 
   messages.push({ role: "user", content: userMessage });
-  await compactHistory();
+  const historyChars = JSON.stringify(messages.slice(1)).length;
+  if (historyChars > config.compaction.thresholdChars) {
+    const targetStart = Math.max(1, messages.length - config.compaction.recentMessageCount);
+    const recentStart = messages.findIndex(
+      (message, index) => index >= targetStart && message.role === "user",
+    );
+
+    if (recentStart > 1) {
+      const olderMessages = messages.slice(1, recentStart);
+      const response = await fetch(config.apiUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${config.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: config.model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
+            },
+            { role: "user", content: JSON.stringify(olderMessages) },
+          ],
+        }),
+      });
+
+      const body = await response.json();
+      const summary = body.choices[0].message.content;
+      messages.splice(1, olderMessages.length, {
+        role: "system",
+        content: `Conversation summary:\n${summary}`,
+      });
+      if (config.verbose) {
+        console.log(
+          `\n=== COMPACTION START ===\nCompacted ${olderMessages.length} messages into:\n${summary}\n=== COMPACTION END ===\n`,
+        );
+      }
+    }
+  }
 
   for (let i = 0; i < config.maxAgentIterations; i++) {
     const response = await fetch(config.apiUrl, {
