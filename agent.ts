@@ -2,15 +2,25 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
 
-const verbose = Bun.argv.includes("--verbose");
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await Deno.stat(path);
+    return true;
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return false;
+    throw error;
+  }
+}
+
+const verbose = Deno.args.includes("--verbose");
 const model = "minimax/minimax-m3";
 const maxAgentIterations = 50;
-const configuredCompactionThreshold = Number(Bun.env.AGENT_COMPACTION_CHARS ?? 12_000);
+const configuredCompactionThreshold = Number(Deno.env.get("AGENT_COMPACTION_CHARS") ?? 12_000);
 const compactionThreshold = Number.isFinite(configuredCompactionThreshold) && configuredCompactionThreshold > 0
   ? configuredCompactionThreshold
   : 12_000;
 const recentMessageCount = 4;
-const agentsMd = await Bun.file("AGENTS.md").text();
+const agentsMd = await Deno.readTextFile("AGENTS.md");
 
 const skills = new Map<string, {
   name: string;
@@ -26,9 +36,9 @@ const skillNames = await readdir(skillBase);
 for (const name of skillNames) {
   const dir = `${skillBase}/${name}`;
   const loc = `${dir}/SKILL.md`;
-  const file = Bun.file(loc);
-  if (await file.exists()) {
-    const text = await file.text();
+  const file = loc;
+  if (await fileExists(file)) {
+    const text = await Deno.readTextFile(file);
     if (!text.startsWith("---\n")) continue;
 
     const end = text.indexOf("\n---\n", 4);
@@ -137,7 +147,7 @@ async function runAgent(
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
@@ -192,7 +202,7 @@ async function runAgent(
         if (answer !== "y" && answer !== "yes") {
           result = "Shell command rejected by user.";
         } else {
-          const proc = Bun.spawnSync(["bash", "-lc", args.command]);
+          const proc = new Deno.Command("bash", { args: ["-lc", args.command] }).outputSync();
           result = (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
         }
         traceResult = `$ ${args.command}\n${result}`;
@@ -268,7 +278,7 @@ while (true) {
       const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
