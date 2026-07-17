@@ -25,11 +25,6 @@ const tools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-function shell(command: string) {
-  const proc = new Deno.Command("bash", { args: ["-lc", command] }).outputSync();
-  return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
-}
-
 console.log(`Hi, how can I help you today?`);
 
 while (true) {
@@ -59,7 +54,8 @@ while (true) {
   } else {
     for (const toolCall of message.tool_calls) {
       const { command } = JSON.parse(toolCall.function.arguments);
-      const result = shell(command);
+      const proc = new Deno.Command("bash", { args: ["-lc", command] }).outputSync();
+      const result = (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
       console.log(`$ ${command}\n${result}`);
       messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
     }
