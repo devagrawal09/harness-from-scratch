@@ -86,19 +86,6 @@ const tools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-async function shell(command: string) {
-  const answer = (await rl.question(`\nApprove shell command? [y/N]\n$ ${command}\n> `))
-    .trim()
-    .toLowerCase();
-
-  if (answer !== "y" && answer !== "yes") {
-    return "Shell command rejected by user.";
-  }
-
-  const proc = new Deno.Command("bash", { args: ["-lc", command] }).outputSync();
-  return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
-}
-
 function loadSkill(name: string) {
   const skill = skills.get(name.toLowerCase());
   if (!skill) return `Skill not found: ${name}`;
@@ -220,7 +207,20 @@ while (true) {
       printBlock(`tool call: ${toolCall.function.name}`, toolCall.function.arguments);
 
       if (toolCall.function.name === "shell") {
-        result = await shell(args.command);
+        const answer = (
+          await rl.question(`\nApprove shell command? [y/N]\n$ ${args.command}\n> `)
+        )
+          .trim()
+          .toLowerCase();
+
+        if (answer !== "y" && answer !== "yes") {
+          result = "Shell command rejected by user.";
+        } else {
+          const proc = new Deno.Command("bash", {
+            args: ["-lc", args.command],
+          }).outputSync();
+          result = (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
+        }
         printBlock("tool result: shell", `$ ${args.command}\n${result}`);
       }
 
