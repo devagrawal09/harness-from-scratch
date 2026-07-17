@@ -1,6 +1,7 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
+import config from "./config.ts";
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -12,15 +13,7 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-const verbose = Deno.args.includes("--verbose");
-const model = "minimax/minimax-m3";
-const maxAgentIterations = 50;
-const configuredCompactionThreshold = Number(Deno.env.get("AGENT_COMPACTION_CHARS") ?? 12_000);
-const compactionThreshold = Number.isFinite(configuredCompactionThreshold) && configuredCompactionThreshold > 0
-  ? configuredCompactionThreshold
-  : 12_000;
-const recentMessageCount = 4;
-const agentsMd = await Deno.readTextFile("AGENTS.md");
+const agentsMd = await Deno.readTextFile(config.agentInstructionsFile);
 
 const skills = new Map<string, {
   name: string;
@@ -30,7 +23,7 @@ const skills = new Map<string, {
   directory: string;
 }>();
 
-const skillBase = ".agents/skills";
+const skillBase = config.skillsDirectory;
 const skillNames = await readdir(skillBase);
 
 for (const name of skillNames) {
@@ -72,7 +65,7 @@ const mainMessages: any[] = [
   {
     role: "system",
     content: [
-      "You are a concise, helpful coding assistant.",
+      config.systemPrompt,
       agentsMd,
       `\n\nAvailable skills:\n${Array.from(skills.values())
         .map((skill) => `- ${skill.name}: ${skill.description}`)
@@ -81,55 +74,8 @@ const mainMessages: any[] = [
   },
 ];
 
-const baseTools = [
-  {
-    type: "function",
-    function: {
-      name: "shell",
-      description: "Request human approval, then run a shell command in the current project.",
-      parameters: {
-        type: "object",
-        properties: {
-          command: { type: "string" },
-        },
-        required: ["command"],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "load_skill",
-      description: "Load full skill content by frontmatter name (case-insensitive).",
-      parameters: {
-        type: "object",
-        properties: {
-          name: { type: "string", description: "Skill name from frontmatter" },
-        },
-        required: ["name"],
-      },
-    },
-  },
-];
-
-const mainTools = [
-  ...baseTools,
-  {
-    type: "function",
-    function: {
-      name: "run_subagent",
-      description:
-        "Delegate a focused task to an isolated agent loop with shell and skill tools. Include all needed context because it cannot see this conversation.",
-      parameters: {
-        type: "object",
-        properties: {
-          task: { type: "string", description: "Self-contained task for the subagent" },
-        },
-        required: ["task"],
-      },
-    },
-  },
-];
+const baseTools = config.tools.base;
+const mainTools = config.tools.main;
 
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
@@ -143,18 +89,18 @@ async function runAgent(
     availableTools.map((tool) => tool.function.name),
   );
 
-  for (let i = 0; i < maxAgentIterations; i++) {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  for (let i = 0; i < config.maxAgentIterations; i++) {
+    const response = await fetch(config.apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+        Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
+        model: config.model,
         messages: agentMessages,
         tools: availableTools,
-        reasoning: { effort: "medium" },
+        reasoning: config.reasoning,
       }),
     });
 
@@ -168,7 +114,7 @@ async function runAgent(
       reasoning: message.reasoning ?? message.reasoning_content ?? (reasoning || undefined),
     });
 
-    if (reasoning && verbose) {
+    if (reasoning && config.verbose) {
       const marker = (tracePrefix ? `${tracePrefix} reasoning` : "reasoning").toUpperCase();
       console.log(
         `\n=== ${marker} START ===\n${reasoning}\n=== ${marker} END ===\n`,
@@ -185,7 +131,7 @@ async function runAgent(
       let result = `Tool not available: ${name}`;
       let traceResult = result;
 
-      if (verbose) {
+      if (config.verbose) {
         const marker = (
           tracePrefix ? `${tracePrefix} tool call: ${name}` : `tool call: ${name}`
         ).toUpperCase();
@@ -226,7 +172,7 @@ async function runAgent(
           {
             role: "system",
             content: [
-              "You are a focused coding subagent. Complete only the delegated task and return concise findings to the parent agent. You may use shell and skill tools, but you cannot delegate to another subagent or see the parent conversation.",
+              config.subagentSystemPrompt,
               agentsMd,
               `\n\nAvailable skills:\n${Array.from(skills.values())
                 .map((skill) => `- ${skill.name}: ${skill.description}`)
@@ -237,7 +183,7 @@ async function runAgent(
         ];
 
         result = await runAgent(subagentMessages, baseTools, "subagent");
-        if (verbose) {
+        if (config.verbose) {
           console.log(
             `\n=== SUBAGENT RESULT START ===\n${result || "(empty)"}\n=== SUBAGENT RESULT END ===\n`,
           );
@@ -245,7 +191,7 @@ async function runAgent(
         traceResult = "Subagent completed.";
       }
 
-      if (verbose) {
+      if (config.verbose) {
         const marker = (
           tracePrefix ? `${tracePrefix} tool result: ${name}` : `tool result: ${name}`
         ).toUpperCase();
@@ -257,7 +203,7 @@ async function runAgent(
     }
   }
 
-  return `Agent stopped after ${maxAgentIterations} iterations without a final response.`;
+  return `Agent stopped after ${config.maxAgentIterations} iterations without a final response.`;
 }
 
 console.log(`Hi, how can I help you today?`);
@@ -267,27 +213,29 @@ while (true) {
 
   mainMessages.push({ role: "user", content: userMessage });
   const historyChars = JSON.stringify(mainMessages.slice(1)).length;
-  if (historyChars > compactionThreshold) {
-    const targetStart = Math.max(1, mainMessages.length - recentMessageCount);
+  if (historyChars > config.compaction.thresholdChars) {
+    const targetStart = Math.max(
+      1,
+      mainMessages.length - config.compaction.recentMessageCount,
+    );
     const recentStart = mainMessages.findIndex(
       (message, index) => index >= targetStart && message.role === "user",
     );
 
     if (recentStart > 1) {
       const olderMessages = mainMessages.slice(1, recentStart);
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const response = await fetch(config.apiUrl, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+          Authorization: `Bearer ${config.apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model,
+          model: config.model,
           messages: [
             {
               role: "system",
-              content:
-                "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
+              content: config.compaction.systemPrompt,
             },
             { role: "user", content: JSON.stringify(olderMessages) },
           ],
@@ -301,7 +249,7 @@ while (true) {
         content: `Conversation summary:\n${summary}`,
       });
 
-      if (verbose) {
+      if (config.verbose) {
         console.log(
           `\n=== COMPACTION START ===\nCompacted ${olderMessages.length} messages into:\n${summary}\n=== COMPACTION END ===\n`,
         );
@@ -310,7 +258,7 @@ while (true) {
   }
 
   const content = await runAgent(mainMessages, mainTools);
-  if (verbose) {
+  if (config.verbose) {
     console.log(
       `\n=== TEXT OUTPUT START ===\n${content || "(empty)"}\n=== TEXT OUTPUT END ===\n`,
     );
