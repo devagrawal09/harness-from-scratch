@@ -78,17 +78,6 @@ const tools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-function loadSkill(name: string) {
-  const skill = skills.get(name.toLowerCase());
-  if (!skill) return `Skill not found: ${name}`;
-  return JSON.stringify({
-    name: skill.name,
-    content: skill.content,
-    location: skill.location,
-    directory: skill.directory,
-  });
-}
-
 function printBlock(label: string, content: string) {
   if (!config.verbose) return;
 
@@ -217,7 +206,15 @@ while (true) {
       }
 
       if (toolCall.function.name === "load_skill") {
-        result = loadSkill(args.name);
+        const skill = skills.get(args.name.toLowerCase());
+        result = skill
+          ? JSON.stringify({
+              name: skill.name,
+              content: skill.content,
+              location: skill.location,
+              directory: skill.directory,
+            })
+          : `Skill not found: ${args.name}`;
         printBlock("tool result: load_skill", `Loaded skill: ${args.name}`);
       }
 
