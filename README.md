@@ -1,4 +1,4 @@
-# AI Agent Talk OpenRouter CLI
+# Step 6: Rules and Skills
 
 Tiny interactive TypeScript CLI that chats through OpenRouter.
 

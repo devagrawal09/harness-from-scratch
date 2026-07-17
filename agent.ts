@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
 import { parseFrontmatter, type ParsedFrontmatter } from "./frontmatter.ts";
+import config from "./config.ts";
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -13,12 +14,10 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-const agentsMd = await Deno.readTextFile("AGENTS.md");
-
 const skills = new Map<string, ParsedFrontmatter>();
 
-const skillBase = ".agents/skills";
-const skillNames = await readdir(skillBase)
+const skillBase = config.skillsDirectory;
+const skillNames = await readdir(skillBase);
 
 for (const name of skillNames) {
   const dir = `${skillBase}/${name}`;
@@ -37,10 +36,10 @@ const messages: any[] = [
     role: "system",
     content: [
       "You are a concise, helpful coding assistant.",
-      agentsMd,
+      ...config.rules,
       `\n\nAvailable skills:\n${Array.from(skills.values())
         .map((s) => `- ${s.name}: ${s.description}`)
-        .join("\n")}`
+        .join("\n")}`,
     ].filter(Boolean).join("\n\n"),
   },
 ];
@@ -73,7 +72,7 @@ const tools = [
         required: ["name"],
       },
     },
-  }
+  },
 ];
 
 const rl = createInterface({ input, output });

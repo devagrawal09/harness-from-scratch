@@ -2,7 +2,7 @@
 
 This is a tiny OpenRouter CLI agent demo. Keep changes small, readable, and dependency-free.
 
-Skills are defined as `.agents/skills/<skill-name>/SKILL.md` with frontmatter:
+Skills are defined in the configured skills directory as `<skill-name>/SKILL.md` with frontmatter:
 
 ---
 name: skill-name
