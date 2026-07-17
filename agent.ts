@@ -96,15 +96,15 @@ while (true) {
 
   messages.push({ role: "user", content: userMessage });
 
-  for (let i = 0; i < 50; i++) {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  for (let i = 0; i < config.maxAgentIterations; i++) {
+    const response = await fetch(config.apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+        Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "minimax/minimax-m3",
+        model: config.model,
         messages,
         tools,
       }),
