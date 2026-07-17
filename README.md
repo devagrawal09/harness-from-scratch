@@ -1,21 +1,19 @@
 # Step 1: One-shot Chat
 
-This checkpoint replaces the echo with a single OpenRouter Chat Completions
-request. Each line entered in the CLI is sent to `minimax/minimax-m3` as an
-independent user message.
+Replace the echo with an OpenRouter Chat Completions request. Every input is an
+independent request to `minimax/minimax-m3`.
 
-## What changed
+## What this step adds
 
-- `config.ts` holds the OpenRouter URL, API key, and model name.
-- `agent.ts` sends one HTTP request for each terminal input.
-- The assistant's text response is printed to the terminal.
+- `config.ts` with `apiKey`, `apiUrl`, and `model`
+- One model request per terminal input
+- Assistant text output
 
-This is a chatbot, not an agent: it has no conversation memory and cannot take
-actions.
+This is still a chatbot, not an agent: it has no memory or tools.
 
 ## Setup
 
-Create a `.env` file:
+Create `.env`:
 
 ```dotenv
 OPENROUTER_API_KEY="sk-or-your-key"
@@ -28,27 +26,17 @@ deno task check
 deno task start
 ```
 
-Press Ctrl+C to quit.
-
-## Try it
-
-Send these as two separate messages:
+Try:
 
 ```text
-> Remember the codeword ORCHID.
-> What codeword did I give you?
+> Reply with exactly STEP1_OK.
+STEP1_OK
 ```
 
-The second request contains only the second message, so the model cannot
-reliably know the codeword. That missing state is the next concept.
-
-## Limitations
-
-- No conversation history or system instructions
-- No tools or agent loop
-- No HTTP or response-shape error handling
+To observe the missing memory, give the model a codeword and ask for it in the
+next input. The second request does not contain the first one. Press Ctrl+C to
+stop.
 
 ## Next
 
-`step-02-message-history` keeps prior user and assistant messages in memory and
-resends them with every request.
+`step-02-message-history` resends prior user and assistant messages.
