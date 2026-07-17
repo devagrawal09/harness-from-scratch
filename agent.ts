@@ -26,7 +26,7 @@ const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
 function shell(command: string) {
-  const proc = Bun.spawnSync(["bash", "-lc", command]);
+  const proc = new Deno.Command("bash", { args: ["-lc", command] }).outputSync();
   return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
 }
 
@@ -41,7 +41,7 @@ while (true) {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+        Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

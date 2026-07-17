@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "start": "deno run --env-file=.env --watch --allow-env=OPENROUTER_API_KEY --allow-net=openrouter.ai --allow-run=bash agent.ts",
+    "check": "deno check agent.ts"
+  }
+}
