@@ -8,7 +8,6 @@ console.log(`Hi, how can I help you today?`);
 
 while (true) {
   const userMessage = (await rl.question("> ")).trim();
-
   const response = await fetch(config.apiUrl, {
     method: "POST",
     headers: {
@@ -17,7 +16,7 @@ while (true) {
     },
     body: JSON.stringify({
       model: config.model,
-      messages: [{ role: "user", content: userMessage }]
+      messages: [{ role: "user", content: userMessage }],
     }),
   });
 
