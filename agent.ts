@@ -65,7 +65,7 @@ const mainMessages: any[] = [
   {
     role: "system",
     content: [
-      config.systemPrompt,
+      "You are a concise, helpful coding assistant.",
       agentsMd,
       `\n\nAvailable skills:\n${Array.from(skills.values())
         .map((skill) => `- ${skill.name}: ${skill.description}`)
@@ -172,7 +172,7 @@ async function runAgent(
           {
             role: "system",
             content: [
-              config.subagentSystemPrompt,
+              "You are a focused coding subagent. Complete only the delegated task and return concise findings to the parent agent. You may use shell and skill tools, but you cannot delegate to another subagent or see the parent conversation.",
               agentsMd,
               `\n\nAvailable skills:\n${Array.from(skills.values())
                 .map((skill) => `- ${skill.name}: ${skill.description}`)
@@ -235,7 +235,8 @@ while (true) {
           messages: [
             {
               role: "system",
-              content: config.compaction.systemPrompt,
+              content:
+                "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
             },
             { role: "user", content: JSON.stringify(olderMessages) },
           ],

@@ -56,9 +56,6 @@ export default {
   apiKey: Deno.env.get("OPENROUTER_API_KEY"),
   apiUrl: "https://openrouter.ai/api/v1/chat/completions",
   model: "minimax/minimax-m3",
-  systemPrompt: "You are a concise, helpful coding assistant.",
-  subagentSystemPrompt:
-    "You are a focused coding subagent. Complete only the delegated task and return concise findings to the parent agent. You may use shell and skill tools, but you cannot delegate to another subagent or see the parent conversation.",
   maxAgentIterations: 50,
   agentInstructionsFile: "AGENTS.md",
   skillsDirectory: ".agents/skills",
@@ -67,8 +64,6 @@ export default {
   compaction: {
     thresholdChars: compactionThreshold,
     recentMessageCount: 4,
-    systemPrompt:
-      "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
   },
   tools: {
     base: [shellTool, loadSkillTool],
