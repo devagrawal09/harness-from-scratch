@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
 import { parseFrontmatter, type ParsedFrontmatter } from "./frontmatter.ts";
+import config from "./config.ts";
 
 async function fileExists(path: string): Promise<boolean> {
   try {
@@ -13,12 +14,9 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-const verbose = Deno.args.includes("--verbose");
-const agentsMd = await Deno.readTextFile("AGENTS.md");
-
 const skills = new Map<string, ParsedFrontmatter>();
 
-const skillBase = ".agents/skills";
+const skillBase = config.skillsDirectory;
 const skillNames = await readdir(skillBase);
 
 for (const name of skillNames) {
@@ -38,7 +36,7 @@ const messages: any[] = [
     role: "system",
     content: [
       "You are a concise, helpful coding assistant.",
-      agentsMd,
+      ...config.rules,
       `\n\nAvailable skills:\n${Array.from(skills.values())
         .map((s) => `- ${s.name}: ${s.description}`)
         .join("\n")}`,
@@ -92,14 +90,14 @@ function loadSkill(name: string) {
 }
 
 function printBlock(label: string, content: string) {
-  if (!verbose) return;
+  if (!config.verbose) return;
 
   const marker = label.toUpperCase();
   console.log(`\n=== ${marker} START ===\n${content || "(empty)"}\n=== ${marker} END ===\n`);
 }
 
 function printTextOutput(content: string) {
-  if (verbose) {
+  if (config.verbose) {
     printBlock("text output", content);
     return;
   }
@@ -127,18 +125,18 @@ while (true) {
 
   messages.push({ role: "user", content: userMessage });
 
-  for (let i = 0; i < 50; i++) {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+  for (let i = 0; i < config.maxAgentIterations; i++) {
+    const response = await fetch(config.apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
+        Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "minimax/minimax-m3",
+        model: config.model,
         messages,
         tools,
-        reasoning: { effort: "medium" },
+        reasoning: config.reasoning,
       }),
     });
 
