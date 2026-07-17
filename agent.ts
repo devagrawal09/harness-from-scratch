@@ -37,29 +37,26 @@ while (true) {
 
   messages.push({ role: "user", content: userMessage });
 
-  for (let i = 0; i < 50; i++) {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "minimax/minimax-m3",
-        messages,
-        tools,
-      }),
-    });
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "minimax/minimax-m3",
+      messages,
+      tools,
+    }),
+  });
 
-    const body = await response.json();
-    const message = body.choices[0].message;
-    messages.push(message);
+  const body = await response.json();
+  const message = body.choices[0].message;
+  messages.push(message);
 
-    if (!message.tool_calls) {
-      console.log(message.content);
-      break;
-    }
-
+  if (!message.tool_calls) {
+    console.log(message.content);
+  } else {
     for (const toolCall of message.tool_calls) {
       const { command } = JSON.parse(toolCall.function.arguments);
       const result = shell(command);
