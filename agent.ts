@@ -24,34 +24,29 @@ while (true) {
 
   messages.push({ role: "user", content: userMessage });
 
-  for (let i = 0; i < 5; i++) {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "minimax/minimax-m3",
-        messages,
-      }),
-    });
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "minimax/minimax-m3",
+      messages,
+    }),
+  });
 
-    const body = await response.json();
-    const text = body.choices[0].message.content;
-    const action = JSON.parse(text);
+  const body = await response.json();
+  const text = body.choices[0].message.content;
+  const action = JSON.parse(text);
 
-    messages.push({ role: "assistant", content: text });
+  messages.push({ role: "assistant", content: text });
 
-    if (action.action === "reply") {
-      console.log(action.content);
-      break;
-    }
-
+  if (action.action === "reply") {
+    console.log(action.content);
+  } else {
     const result = shell(action.command);
     console.log(`$ ${action.command}\n${result}`);
-    messages.push({
-      role: "user", content: `Shell output:\n${result}`
-    });
+    messages.push({ role: "user", content: `Shell output:\n${result}` });
   }
 }
