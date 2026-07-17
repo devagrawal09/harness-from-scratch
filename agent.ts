@@ -6,6 +6,23 @@ const messages: any[] = [
   { role: "system", content: "You are a concise, helpful coding assistant." },
 ];
 
+const tools = [
+  {
+    type: "function",
+    function: {
+      name: "shell",
+      description: "Run a shell command in the current project.",
+      parameters: {
+        type: "object",
+        properties: {
+          command: { type: "string" },
+        },
+        required: ["command"],
+      },
+    },
+  },
+];
+
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
@@ -26,7 +43,7 @@ while (true) {
       body: JSON.stringify({
         model: config.model,
         messages,
-        tools: config.tools,
+        tools,
       }),
     });
 
