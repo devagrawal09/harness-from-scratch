@@ -19,4 +19,4 @@ Shell tool calls pause for human approval before they run. Add `--verbose` to sh
 
 Conversation history compacts automatically after 12,000 serialized characters while recent turns remain verbatim. Set `AGENT_COMPACTION_CHARS` to a lower threshold when demonstrating compaction.
 
-The `run_subagent` tool delegates self-contained tasks to isolated model calls. Subagents receive the repository instructions, but not the parent conversation or tools.
+The `run_subagent` tool starts the same model/tool loop with isolated message history. Subagents receive the repository instructions plus shell and skill tools, but not the parent conversation or the ability to delegate again.
