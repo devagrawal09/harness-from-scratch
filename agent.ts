@@ -12,11 +12,6 @@ const messages = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-function shell(command: string) {
-  const proc = new Deno.Command("bash", { args: ["-lc", command] }).outputSync();
-  return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
-}
-
 console.log(`Hi, how can I help you today?`);
 
 while (true) {
@@ -45,7 +40,10 @@ while (true) {
   if (action.action === "reply") {
     console.log(action.content);
   } else {
-    const result = shell(action.command);
+    const proc = new Deno.Command("bash", {
+      args: ["-lc", action.command],
+    }).outputSync();
+    const result = (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
     console.log(`$ ${action.command}\n${result}`);
     messages.push({ role: "user", content: `Shell output:\n${result}` });
   }
