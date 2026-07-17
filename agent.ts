@@ -37,7 +37,7 @@ while (true) {
 
   messages.push({ role: "user", content: userMessage });
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 50; i++) {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
