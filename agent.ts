@@ -92,9 +92,9 @@ const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
 async function runAgent(
+  agentName: string,
   agentMessages: any[],
   availableTools: any[],
-  tracePrefix = "",
 ): Promise<string> {
   const availableToolNames = new Set(
     availableTools.map((tool) => tool.function.name),
@@ -126,7 +126,7 @@ async function runAgent(
     });
 
     if (reasoning && config.verbose) {
-      const marker = (tracePrefix ? `${tracePrefix} reasoning` : "reasoning").toUpperCase();
+      const marker = `${agentName} reasoning`.toUpperCase();
       console.log(
         `\n=== ${marker} START ===\n${reasoning}\n=== ${marker} END ===\n`,
       );
@@ -143,9 +143,7 @@ async function runAgent(
       let traceResult = result;
 
       if (config.verbose) {
-        const marker = (
-          tracePrefix ? `${tracePrefix} tool call: ${name}` : `tool call: ${name}`
-        ).toUpperCase();
+        const marker = `${agentName} tool call: ${name}`.toUpperCase();
         console.log(
           `\n=== ${marker} START ===\n${toolCall.function.arguments || "(empty)"}\n=== ${marker} END ===\n`,
         );
@@ -186,7 +184,7 @@ async function runAgent(
           { role: "user", content: args.task },
         ];
 
-        result = await runAgent(subagentMessages, baseTools, "subagent");
+        result = await runAgent("subagent", subagentMessages, baseTools);
         if (config.verbose) {
           console.log(
             `\n=== SUBAGENT RESULT START ===\n${result || "(empty)"}\n=== SUBAGENT RESULT END ===\n`,
@@ -196,9 +194,7 @@ async function runAgent(
       }
 
       if (config.verbose) {
-        const marker = (
-          tracePrefix ? `${tracePrefix} tool result: ${name}` : `tool result: ${name}`
-        ).toUpperCase();
+        const marker = `${agentName} tool result: ${name}`.toUpperCase();
         console.log(
           `\n=== ${marker} START ===\n${traceResult || "(empty)"}\n=== ${marker} END ===\n`,
         );
@@ -262,7 +258,7 @@ while (true) {
     }
   }
 
-  const content = await runAgent(mainMessages, mainTools);
+  const content = await runAgent("main", mainMessages, mainTools);
   if (config.verbose) {
     console.log(
       `\n=== TEXT OUTPUT START ===\n${content || "(empty)"}\n=== TEXT OUTPUT END ===\n`,
