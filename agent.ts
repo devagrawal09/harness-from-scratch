@@ -78,35 +78,6 @@ const tools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-function printBlock(label: string, content: string) {
-  if (!config.verbose) return;
-
-  const marker = label.toUpperCase();
-  console.log(`\n=== ${marker} START ===\n${content || "(empty)"}\n=== ${marker} END ===\n`);
-}
-
-function printTextOutput(content: string) {
-  if (config.verbose) {
-    printBlock("text output", content);
-    return;
-  }
-
-  console.log(content.replace(/\s+/g, " ").trim());
-}
-
-function getReasoning(message: any) {
-  return [message.reasoning, message.reasoning_content]
-    .filter((part) => typeof part === "string" && part.trim())
-    .join("\n\n");
-}
-
-function rememberAssistantMessage(message: any, reasoning: string) {
-  messages.push({
-    ...message,
-    reasoning: message.reasoning ?? message.reasoning_content ?? (reasoning || undefined),
-  });
-}
-
 async function compactHistory() {
   const historyChars = JSON.stringify(messages.slice(1)).length;
   if (historyChars <= config.compaction.thresholdChars) return;
@@ -143,7 +114,11 @@ async function compactHistory() {
     role: "system",
     content: `Conversation summary:\n${summary}`,
   });
-  printBlock("compaction", `Compacted ${olderMessages.length} messages into:\n${summary}`);
+  if (config.verbose) {
+    console.log(
+      `\n=== COMPACTION START ===\nCompacted ${olderMessages.length} messages into:\n${summary}\n=== COMPACTION END ===\n`,
+    );
+  }
 }
 
 console.log(`Hi, how can I help you today?`);
@@ -171,13 +146,26 @@ while (true) {
 
     const body = await response.json();
     const message = body.choices[0].message;
-    const reasoning = getReasoning(message);
-    rememberAssistantMessage(message, reasoning);
+    const reasoning = [message.reasoning, message.reasoning_content]
+      .filter((part) => typeof part === "string" && part.trim())
+      .join("\n\n");
+    messages.push({
+      ...message,
+      reasoning: message.reasoning ?? message.reasoning_content ?? (reasoning || undefined),
+    });
 
-    if (reasoning) printBlock("reasoning", reasoning);
+    if (reasoning && config.verbose) {
+      console.log(`\n=== REASONING START ===\n${reasoning}\n=== REASONING END ===\n`);
+    }
 
     if (!message.tool_calls) {
-      printTextOutput(message.content);
+      if (config.verbose) {
+        console.log(
+          `\n=== TEXT OUTPUT START ===\n${message.content || "(empty)"}\n=== TEXT OUTPUT END ===\n`,
+        );
+      } else {
+        console.log(message.content.replace(/\s+/g, " ").trim());
+      }
       break;
     }
 
@@ -185,7 +173,12 @@ while (true) {
       const args = JSON.parse(toolCall.function.arguments);
       let result = "Unknown tool";
 
-      printBlock(`tool call: ${toolCall.function.name}`, toolCall.function.arguments);
+      if (config.verbose) {
+        const marker = `TOOL CALL: ${toolCall.function.name}`.toUpperCase();
+        console.log(
+          `\n=== ${marker} START ===\n${toolCall.function.arguments || "(empty)"}\n=== ${marker} END ===\n`,
+        );
+      }
 
       if (toolCall.function.name === "shell") {
         const answer = (
@@ -202,13 +195,21 @@ while (true) {
           }).outputSync();
           result = (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
         }
-        printBlock("tool result: shell", `$ ${args.command}\n${result}`);
+        if (config.verbose) {
+          console.log(
+            `\n=== TOOL RESULT: SHELL START ===\n$ ${args.command}\n${result}\n=== TOOL RESULT: SHELL END ===\n`,
+          );
+        }
       }
 
       if (toolCall.function.name === "load_skill") {
         const skill = skills.get(args.name.toLowerCase());
         result = skill ? skill.content : `Skill not found: ${args.name}`;
-        printBlock("tool result: load_skill", `Loaded skill: ${args.name}`);
+        if (config.verbose) {
+          console.log(
+            `\n=== TOOL RESULT: LOAD_SKILL START ===\nLoaded skill: ${args.name}\n=== TOOL RESULT: LOAD_SKILL END ===\n`,
+          );
+        }
       }
 
       messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
