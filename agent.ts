@@ -80,11 +80,6 @@ const tools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-function shell(command: string) {
-  const proc = new Deno.Command("bash", { args: ["-lc", command] }).outputSync();
-  return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
-}
-
 function loadSkill(name: string) {
   const skill = skills.get(name.toLowerCase());
   if (!skill) return `Skill not found: ${name}`;
@@ -166,7 +161,10 @@ while (true) {
       printBlock(`tool call: ${toolCall.function.name}`, toolCall.function.arguments);
 
       if (toolCall.function.name === "shell") {
-        result = shell(args.command);
+        const proc = new Deno.Command("bash", {
+          args: ["-lc", args.command],
+        }).outputSync();
+        result = (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
         printBlock("tool result: shell", `$ ${args.command}\n${result}`);
       }
 
