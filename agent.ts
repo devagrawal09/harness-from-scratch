@@ -11,7 +11,7 @@ while (true) {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+      Authorization: `Bearer ${Deno.env.get("OPENROUTER_API_KEY")}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({

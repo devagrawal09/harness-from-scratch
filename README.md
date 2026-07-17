@@ -5,7 +5,6 @@ Tiny interactive TypeScript CLI that chats through OpenRouter using Gemini 3 Fla
 ## Setup
 
 ```bash
-bun install
 export OPENROUTER_API_KEY="sk-or-your-key"
 ```
 
@@ -18,7 +17,7 @@ export OPENROUTER_MODEL="google/gemini-3-flash"
 ## Run
 
 ```bash
-bun run agent.ts
+deno task start
 ```
 
 Then type messages at the prompt. Use `/exit` to quit.
