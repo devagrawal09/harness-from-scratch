@@ -1,19 +1,22 @@
-# AI Agent Talk OpenRouter CLI
+# Step 2: Message History
 
-Tiny interactive TypeScript CLI that chats through OpenRouter using Gemini 3 Flash.
+Keep prior user and assistant messages in memory and send the complete history
+with every OpenRouter request.
+
+## What this step adds
+
+- A persistent `messages` array for the current process
+- Multi-turn conversational memory
+- The same `apiKey`, `apiUrl`, and `model` config introduced in Step 1
+
+History is not saved to disk; restarting the CLI starts a new conversation.
 
 ## Setup
 
-Create a `.env` file:
+Create `.env`:
 
 ```dotenv
 OPENROUTER_API_KEY="sk-or-your-key"
-```
-
-If OpenRouter uses a different Gemini 3 Flash slug, override it:
-
-```bash
-export OPENROUTER_MODEL="google/gemini-3-flash"
 ```
 
 ## Run
@@ -23,4 +26,17 @@ deno task check
 deno task start
 ```
 
-Then type messages at the prompt. Use `/exit` to quit.
+Try:
+
+```text
+> Remember codeword ZEBRA. Reply only READY.
+READY
+> What codeword did I give you? Reply with only it.
+ZEBRA
+```
+
+Press Ctrl+C to stop.
+
+## Next
+
+`step-03-system-prompt` adds a hardcoded system instruction.
