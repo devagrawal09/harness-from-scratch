@@ -1,0 +1,3 @@
+notify = ["sh", "/home/lucifer/work/active/ai-agent-talk-openrouter-cli/.codex/codemod/periodic-update/check-updates.sh"]
+[mcp_servers]
+codemod = { command = "/home/lucifer/.npm/_npx/e5ba0e221a5bc5b4/node_modules/@codemod.com/cli-linux-x64-gnu/codemod", args = ["mcp"] }
