@@ -4,7 +4,8 @@ Tiny interactive TypeScript CLI that chats through OpenRouter.
 
 ## Setup
 
-```bash
-bun install
-export OPENROUTER_API_KEY="sk-or-your-key"
+Create a `.env` file:
+
+```dotenv
+OPENROUTER_API_KEY="sk-or-your-key"
 ```
