@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "start": "deno run --watch agent.ts",
+    "check": "deno check agent.ts"
+  }
+}
