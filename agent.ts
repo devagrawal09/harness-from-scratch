@@ -122,14 +122,7 @@ while (true) {
 
       if (toolCall.function.name === "load_skill") {
         const skill = skills.get(args.name.toLowerCase());
-        result = skill
-          ? JSON.stringify({
-              name: skill.name,
-              content: skill.content,
-              location: skill.location,
-              directory: skill.directory,
-            })
-          : `Skill not found: ${args.name}`;
+        result = skill ? skill.content : `Skill not found: ${args.name}`;
         console.log(`Loaded skill: ${args.name}`);
       }
 
