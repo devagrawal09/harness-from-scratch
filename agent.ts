@@ -72,6 +72,21 @@ const tools = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "run_subagent",
+      description:
+        "Delegate a focused task to an isolated subagent. Include all needed context because it cannot see this conversation or use tools.",
+      parameters: {
+        type: "object",
+        properties: {
+          task: { type: "string", description: "Self-contained task for the subagent" },
+        },
+        required: ["task"],
+      },
+    },
+  },
 ];
 
 const rl = createInterface({ input, output });
@@ -128,6 +143,39 @@ function rememberAssistantMessage(message: any, reasoning: string) {
     ...message,
     reasoning: message.reasoning ?? message.reasoning_content ?? (reasoning || undefined),
   });
+}
+
+async function runSubagent(task: string) {
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content: [
+            "You are a focused coding subagent. Complete only the delegated task and return concise findings to the parent agent. You have no tools and cannot see the parent conversation.",
+            agentsMd,
+          ].join("\n\n"),
+        },
+        { role: "user", content: task },
+      ],
+      reasoning: { effort: "medium" },
+    }),
+  });
+
+  const body = await response.json();
+  const message = body.choices[0].message;
+  const reasoning = getReasoning(message);
+  if (reasoning) printBlock("subagent reasoning", reasoning);
+
+  const content = message.content || "(Subagent returned no text.)";
+  printBlock("subagent result", content);
+  return content;
 }
 
 async function compactHistory() {
@@ -218,6 +266,10 @@ while (true) {
       if (toolCall.function.name === "load_skill") {
         result = loadSkill(args.name);
         printBlock("tool result: load_skill", `Loaded skill: ${args.name}`);
+      }
+
+      if (toolCall.function.name === "run_subagent") {
+        result = await runSubagent(args.task);
       }
 
       messages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
