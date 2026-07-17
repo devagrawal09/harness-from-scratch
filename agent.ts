@@ -1,7 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import { readdir } from "node:fs/promises";
-import { parseFrontmatter, type ParsedFrontmatter } from "./frontmatter";
 
 const verbose = Bun.argv.includes("--verbose");
 const model = "minimax/minimax-m3";
@@ -13,7 +12,13 @@ const compactionThreshold = Number.isFinite(configuredCompactionThreshold) && co
 const recentMessageCount = 4;
 const agentsMd = await Bun.file("AGENTS.md").text();
 
-const skills = new Map<string, ParsedFrontmatter>();
+const skills = new Map<string, {
+  name: string;
+  description: string;
+  content: string;
+  location: string;
+  directory: string;
+}>();
 
 const skillBase = ".agents/skills";
 const skillNames = await readdir(skillBase);
@@ -24,27 +29,45 @@ for (const name of skillNames) {
   const file = Bun.file(loc);
   if (await file.exists()) {
     const text = await file.text();
-    const parsed = parseFrontmatter(text, loc, dir);
-    if (parsed) {
-      skills.set(parsed.name.toLowerCase(), parsed);
+    if (!text.startsWith("---\n")) continue;
+
+    const end = text.indexOf("\n---\n", 4);
+    if (end === -1) continue;
+
+    let skillName = "";
+    let description = "";
+    for (const line of text.slice(4, end).split("\n")) {
+      const separator = line.indexOf(": ");
+      if (separator === -1) continue;
+
+      const key = line.slice(0, separator).trim();
+      const value = line.slice(separator + 2).trim();
+      if (key === "name") skillName = value;
+      if (key === "description") description = value;
+    }
+
+    if (skillName) {
+      skills.set(skillName.toLowerCase(), {
+        name: skillName,
+        description,
+        content: text.slice(end + 5),
+        location: loc,
+        directory: dir,
+      });
     }
   }
-}
-
-function buildSystemPrompt(instruction: string) {
-  return [
-    instruction,
-    agentsMd,
-    `\n\nAvailable skills:\n${Array.from(skills.values())
-      .map((skill) => `- ${skill.name}: ${skill.description}`)
-      .join("\n")}`,
-  ].filter(Boolean).join("\n\n");
 }
 
 const mainMessages: any[] = [
   {
     role: "system",
-    content: buildSystemPrompt("You are a concise, helpful coding assistant."),
+    content: [
+      "You are a concise, helpful coding assistant.",
+      agentsMd,
+      `\n\nAvailable skills:\n${Array.from(skills.values())
+        .map((skill) => `- ${skill.name}: ${skill.description}`)
+        .join("\n")}`,
+    ].filter(Boolean).join("\n\n"),
   },
 ];
 
@@ -101,63 +124,6 @@ const mainTools = [
 const rl = createInterface({ input, output });
 const decoder = new TextDecoder();
 
-async function shell(command: string) {
-  const answer = (await rl.question(`\nApprove shell command? [y/N]\n$ ${command}\n> `))
-    .trim()
-    .toLowerCase();
-
-  if (answer !== "y" && answer !== "yes") {
-    return "Shell command rejected by user.";
-  }
-
-  const proc = Bun.spawnSync(["bash", "-lc", command]);
-  return (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
-}
-
-function loadSkill(name: string) {
-  const skill = skills.get(name.toLowerCase());
-  if (!skill) return `Skill not found: ${name}`;
-  return JSON.stringify({
-    name: skill.name,
-    content: skill.content,
-    location: skill.location,
-    directory: skill.directory,
-  });
-}
-
-function printBlock(label: string, content: string) {
-  if (!verbose) return;
-
-  const marker = label.toUpperCase();
-  console.log(`\n=== ${marker} START ===\n${content || "(empty)"}\n=== ${marker} END ===\n`);
-}
-
-function printTextOutput(content: string) {
-  if (verbose) {
-    printBlock("text output", content);
-    return;
-  }
-
-  console.log(content.replace(/\s+/g, " ").trim());
-}
-
-function getReasoning(message: any) {
-  return [message.reasoning, message.reasoning_content]
-    .filter((part) => typeof part === "string" && part.trim())
-    .join("\n\n");
-}
-
-function rememberAssistantMessage(agentMessages: any[], message: any, reasoning: string) {
-  agentMessages.push({
-    ...message,
-    reasoning: message.reasoning ?? message.reasoning_content ?? (reasoning || undefined),
-  });
-}
-
-function traceLabel(prefix: string, label: string) {
-  return prefix ? `${prefix} ${label}` : label;
-}
-
 async function runAgent(
   agentMessages: any[],
   availableTools: any[],
@@ -184,10 +150,20 @@ async function runAgent(
 
     const body = await response.json();
     const message = body.choices[0].message;
-    const reasoning = getReasoning(message);
-    rememberAssistantMessage(agentMessages, message, reasoning);
+    const reasoning = [message.reasoning, message.reasoning_content]
+      .filter((part) => typeof part === "string" && part.trim())
+      .join("\n\n");
+    agentMessages.push({
+      ...message,
+      reasoning: message.reasoning ?? message.reasoning_content ?? (reasoning || undefined),
+    });
 
-    if (reasoning) printBlock(traceLabel(tracePrefix, "reasoning"), reasoning);
+    if (reasoning && verbose) {
+      const marker = (tracePrefix ? `${tracePrefix} reasoning` : "reasoning").toUpperCase();
+      console.log(
+        `\n=== ${marker} START ===\n${reasoning}\n=== ${marker} END ===\n`,
+      );
+    }
 
     if (!message.tool_calls) {
       return message.content || "";
@@ -199,84 +175,79 @@ async function runAgent(
       let result = `Tool not available: ${name}`;
       let traceResult = result;
 
-      printBlock(traceLabel(tracePrefix, `tool call: ${name}`), toolCall.function.arguments);
+      if (verbose) {
+        const marker = (
+          tracePrefix ? `${tracePrefix} tool call: ${name}` : `tool call: ${name}`
+        ).toUpperCase();
+        console.log(
+          `\n=== ${marker} START ===\n${toolCall.function.arguments || "(empty)"}\n=== ${marker} END ===\n`,
+        );
+      }
 
       if (availableToolNames.has(name) && name === "shell") {
-        result = await shell(args.command);
+        const answer = (await rl.question(
+          `\nApprove shell command? [y/N]\n$ ${args.command}\n> `,
+        )).trim().toLowerCase();
+
+        if (answer !== "y" && answer !== "yes") {
+          result = "Shell command rejected by user.";
+        } else {
+          const proc = Bun.spawnSync(["bash", "-lc", args.command]);
+          result = (decoder.decode(proc.stdout) + decoder.decode(proc.stderr)).trim();
+        }
         traceResult = `$ ${args.command}\n${result}`;
       }
 
       if (availableToolNames.has(name) && name === "load_skill") {
-        result = loadSkill(args.name);
+        const skill = skills.get(args.name.toLowerCase());
+        result = skill
+          ? JSON.stringify({
+              name: skill.name,
+              content: skill.content,
+              location: skill.location,
+              directory: skill.directory,
+            })
+          : `Skill not found: ${args.name}`;
         traceResult = `Loaded skill: ${args.name}`;
       }
 
       if (availableToolNames.has(name) && name === "run_subagent") {
-        result = await runSubagent(args.task);
+        const subagentMessages: any[] = [
+          {
+            role: "system",
+            content: [
+              "You are a focused coding subagent. Complete only the delegated task and return concise findings to the parent agent. You may use shell and skill tools, but you cannot delegate to another subagent or see the parent conversation.",
+              agentsMd,
+              `\n\nAvailable skills:\n${Array.from(skills.values())
+                .map((skill) => `- ${skill.name}: ${skill.description}`)
+                .join("\n")}`,
+            ].filter(Boolean).join("\n\n"),
+          },
+          { role: "user", content: args.task },
+        ];
+
+        result = await runAgent(subagentMessages, baseTools, "subagent");
+        if (verbose) {
+          console.log(
+            `\n=== SUBAGENT RESULT START ===\n${result || "(empty)"}\n=== SUBAGENT RESULT END ===\n`,
+          );
+        }
         traceResult = "Subagent completed.";
       }
 
-      printBlock(traceLabel(tracePrefix, `tool result: ${name}`), traceResult);
+      if (verbose) {
+        const marker = (
+          tracePrefix ? `${tracePrefix} tool result: ${name}` : `tool result: ${name}`
+        ).toUpperCase();
+        console.log(
+          `\n=== ${marker} START ===\n${traceResult || "(empty)"}\n=== ${marker} END ===\n`,
+        );
+      }
       agentMessages.push({ role: "tool", tool_call_id: toolCall.id, content: result });
     }
   }
 
   return `Agent stopped after ${maxAgentIterations} iterations without a final response.`;
-}
-
-async function runSubagent(task: string) {
-  const subagentMessages: any[] = [
-    {
-      role: "system",
-      content: buildSystemPrompt(
-        "You are a focused coding subagent. Complete only the delegated task and return concise findings to the parent agent. You may use shell and skill tools, but you cannot delegate to another subagent or see the parent conversation.",
-      ),
-    },
-    { role: "user", content: task },
-  ];
-
-  const content = await runAgent(subagentMessages, baseTools, "subagent");
-  printBlock("subagent result", content);
-  return content;
-}
-
-async function compactHistory(agentMessages: any[]) {
-  const historyChars = JSON.stringify(agentMessages.slice(1)).length;
-  if (historyChars <= compactionThreshold) return;
-
-  const targetStart = Math.max(1, agentMessages.length - recentMessageCount);
-  const recentStart = agentMessages.findIndex(
-    (message, index) => index >= targetStart && message.role === "user",
-  );
-  if (recentStart <= 1) return;
-
-  const olderMessages = agentMessages.slice(1, recentStart);
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        {
-          role: "system",
-          content:
-            "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
-        },
-        { role: "user", content: JSON.stringify(olderMessages) },
-      ],
-    }),
-  });
-
-  const body = await response.json();
-  const summary = body.choices[0].message.content;
-  agentMessages.splice(1, olderMessages.length, {
-    role: "system",
-    content: `Conversation summary:\n${summary}`,
-  });
-  printBlock("compaction", `Compacted ${olderMessages.length} messages into:\n${summary}`);
 }
 
 console.log(`Hi, how can I help you today?`);
@@ -285,8 +256,55 @@ while (true) {
   const userMessage = (await rl.question("> ")).trim();
 
   mainMessages.push({ role: "user", content: userMessage });
-  await compactHistory(mainMessages);
+  const historyChars = JSON.stringify(mainMessages.slice(1)).length;
+  if (historyChars > compactionThreshold) {
+    const targetStart = Math.max(1, mainMessages.length - recentMessageCount);
+    const recentStart = mainMessages.findIndex(
+      (message, index) => index >= targetStart && message.role === "user",
+    );
+
+    if (recentStart > 1) {
+      const olderMessages = mainMessages.slice(1, recentStart);
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            {
+              role: "system",
+              content:
+                "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
+            },
+            { role: "user", content: JSON.stringify(olderMessages) },
+          ],
+        }),
+      });
+
+      const body = await response.json();
+      const summary = body.choices[0].message.content;
+      mainMessages.splice(1, olderMessages.length, {
+        role: "system",
+        content: `Conversation summary:\n${summary}`,
+      });
+
+      if (verbose) {
+        console.log(
+          `\n=== COMPACTION START ===\nCompacted ${olderMessages.length} messages into:\n${summary}\n=== COMPACTION END ===\n`,
+        );
+      }
+    }
+  }
 
   const content = await runAgent(mainMessages, mainTools);
-  printTextOutput(content);
+  if (verbose) {
+    console.log(
+      `\n=== TEXT OUTPUT START ===\n${content || "(empty)"}\n=== TEXT OUTPUT END ===\n`,
+    );
+  } else {
+    console.log(content.replace(/\s+/g, " ").trim());
+  }
 }
