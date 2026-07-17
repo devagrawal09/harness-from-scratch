@@ -4,6 +4,12 @@ import { readdir } from "node:fs/promises";
 import { parseFrontmatter, type ParsedFrontmatter } from "./frontmatter";
 
 const verbose = Bun.argv.includes("--verbose");
+const model = "minimax/minimax-m3";
+const configuredCompactionThreshold = Number(Bun.env.AGENT_COMPACTION_CHARS ?? 12_000);
+const compactionThreshold = Number.isFinite(configuredCompactionThreshold) && configuredCompactionThreshold > 0
+  ? configuredCompactionThreshold
+  : 12_000;
+const recentMessageCount = 4;
 const agentsMd = await Bun.file("AGENTS.md").text();
 
 const skills = new Map<string, ParsedFrontmatter>();
@@ -124,12 +130,52 @@ function rememberAssistantMessage(message: any, reasoning: string) {
   });
 }
 
+async function compactHistory() {
+  const historyChars = JSON.stringify(messages.slice(1)).length;
+  if (historyChars <= compactionThreshold) return;
+
+  const targetStart = Math.max(1, messages.length - recentMessageCount);
+  const recentStart = messages.findIndex(
+    (message, index) => index >= targetStart && message.role === "user",
+  );
+  if (recentStart <= 1) return;
+
+  const olderMessages = messages.slice(1, recentStart);
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Bun.env.OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: "system",
+          content:
+            "Summarize this conversation history for another coding agent. Preserve requirements, decisions, file names, exact identifiers, and unfinished work. Do not add new information.",
+        },
+        { role: "user", content: JSON.stringify(olderMessages) },
+      ],
+    }),
+  });
+
+  const body = await response.json();
+  const summary = body.choices[0].message.content;
+  messages.splice(1, olderMessages.length, {
+    role: "system",
+    content: `Conversation summary:\n${summary}`,
+  });
+  printBlock("compaction", `Compacted ${olderMessages.length} messages into:\n${summary}`);
+}
+
 console.log(`Hi, how can I help you today?`);
 
 while (true) {
   const userMessage = (await rl.question("> ")).trim();
 
   messages.push({ role: "user", content: userMessage });
+  await compactHistory();
 
   for (let i = 0; i < 50; i++) {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -139,7 +185,7 @@ while (true) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "minimax/minimax-m3",
+        model,
         messages,
         tools,
         reasoning: { effort: "medium" },
