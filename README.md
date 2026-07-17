@@ -1,11 +1,36 @@
-# AI Agent Talk OpenRouter CLI
+# Step 5: Agentic Loop
 
-Tiny interactive TypeScript CLI that chats through OpenRouter.
+Continue calling the model after each tool result until it returns a final text
+response or reaches the configured iteration limit.
 
-## Setup
+## What this step adds
 
-Create a `.env` file:
+- A model → tool → model loop
+- `maxAgentIterations` in config
+- The prior `apiKey`, `apiUrl`, and `model` config keys
 
-```dotenv
-OPENROUTER_API_KEY="sk-or-your-key"
+The shell tool remains hardcoded in `agent.ts` and still runs without approval.
+
+## Setup and run
+
+Create `.env` with `OPENROUTER_API_KEY`, then run:
+
+```bash
+deno task check
+deno task start
 ```
+
+Try:
+
+```text
+> Use the shell tool to run printf STEP5_LOOP_OK, then reply with exactly DONE.
+$ printf STEP5_LOOP_OK
+STEP5_LOOP_OK
+DONE
+```
+
+Press Ctrl+C to stop.
+
+## Next
+
+`step-06-rules-and-skills` adds repository rules and on-demand skills.
