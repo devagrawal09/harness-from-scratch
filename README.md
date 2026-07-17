@@ -1,13 +1,13 @@
 # Step 0: Echo CLI
 
-This checkpoint builds the terminal interface before introducing a model. It
-reads one line at a time and prints the same text back.
+Build the terminal interface before introducing a model. The program reads one
+line at a time and echoes it back.
 
-## What this teaches
+## What this step adds
 
-- A chat-style CLI is just an input/output loop.
-- The interface can be tested independently from the model.
-- Nothing in this step is an agent yet.
+- An asynchronous terminal input loop
+- A visible prompt and deterministic output
+- No configuration, network access, model, memory, or tools
 
 ## Run
 
@@ -16,18 +16,15 @@ deno task check
 deno task start
 ```
 
-Type a few messages at the prompt. Press Ctrl+C to quit.
-
-## Try it
+Try:
 
 ```text
-> hello agent
-hello agent
+> echo-smoke
+echo-smoke
 ```
 
-The response is deterministic because no network request, model, message
-history, or tool is involved.
+Press Ctrl+C to stop the loop.
 
 ## Next
 
-`step-01-chat-cli` replaces the echo with a single OpenRouter model call.
+`step-01-chat-cli` replaces the echo with an OpenRouter model call.
