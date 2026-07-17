@@ -1,23 +1,45 @@
-# AI Agent Talk OpenRouter CLI
+# Step 10: Subagents
 
-Tiny interactive TypeScript CLI that chats through OpenRouter.
+Add a `run_subagent` tool that starts an isolated model/tool loop for a focused
+delegated task.
 
-## Setup
+## What this step adds
 
-Create a `.env` file:
+- A hardcoded `run_subagent` tool in `agent.ts`
+- Separate parent and subagent tool lists
+- Isolated subagent message history
+- Parent-visible subagent results and verbose traces
+- Every config key from Step 9; tools and system prompts remain outside config
+
+Subagents receive configured rules plus shell and skill tools. They cannot see
+the parent conversation or delegate to another subagent.
+
+## Setup and run
+
+Create `.env`:
 
 ```dotenv
 OPENROUTER_API_KEY="sk-or-your-key"
 ```
 
-## Run
+Then run:
 
 ```bash
-deno task start
+deno task check
+deno task start -- --verbose
 ```
 
-Shell tool calls pause for human approval before they run. Add `--verbose` to show reasoning, tool calls, and tool results.
+Try:
 
-Conversation history compacts automatically after 12,000 serialized characters while recent turns remain verbatim. Set `AGENT_COMPACTION_CHARS` to a lower threshold when demonstrating compaction.
+```text
+> Delegate to a subagent: ask it to return exactly SUBAGENT_OK. Then reply with exactly PARENT_OK.
+=== SUBAGENT RESULT START ===
+SUBAGENT_OK
+=== SUBAGENT RESULT END ===
+=== TEXT OUTPUT START ===
+PARENT_OK
+=== TEXT OUTPUT END ===
+```
 
-The `run_subagent` tool starts the same model/tool loop with isolated message history. Subagents receive the repository instructions plus shell and skill tools, but not the parent conversation or the ability to delegate again.
+Compaction and shell approvals continue to work as in prior steps. Press Ctrl+C
+to stop.
